@@ -11,13 +11,16 @@ class Mask:
         video_name = os.path.basename(source_video)
         name = os.path.splitext(video_name)
         self.mask_name = "mask_{}.png".format(name[0])
-        print(self.mask_name)
         self.points = False
         self.polys = []
         self.image = image
  
         if not os.path.isfile(self.mask_name):
+            print("Creating mask for {}".format(source_video))
             self._create_mask()
+        else:
+            print("Loading mask {}".format(self.mask_name))
+
 
         self.mask = cv2.imread(self.mask_name, cv2.CV_8UC1)
 
