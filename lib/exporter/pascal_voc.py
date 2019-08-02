@@ -12,7 +12,8 @@ Create the necessary dirs for a Pascal VOC dataset and store images,
 masks and annotations accordingly
 """
 
-class PascalVoc:
+
+class PascalVOCExporter(object):
 
     def __init__(self, path='VOC2007'):
 

@@ -1,18 +1,31 @@
 #!/usr/bin/env python
-from . import mask
-from . import annotated_object
-from . import image
-from . import pascal_voc
-from . import image_input
+
+from lib.exporter import pascal_voc
 import numpy as np
 import cv2
 import os
 import pickle
 
+from .importer import PascalVOCImporter, VideoImporter
 
-class Annotater:
+from .annotated_object import AnnotatedObject
+from . import mask
+from . import image
+from .image_input import ImageInput
 
-    def __init__(self, video_path, use_mask=False):
+dataset_type_importer = {
+    'video': VideoImporter,
+    'pascal_voc': PascalVOCImporter
+}
+
+
+class Annotater(object):
+    def __init__(self, input_path, dataset_type='pascal_voc', use_mask=False):
+        self.input_path = input_path
+        self.dataset_type_str = dataset_type
+        importer = dataset_type_importer.get(self.dataset_type_str)
+        importer_instance = importer(input_path)
+        self.dataset = importer_instance.create_dataset()
 
         # Globally used variables
         self.points = False
@@ -23,8 +36,7 @@ class Annotater:
         # So far, only one classname is possible, feel free to enable more
         self.classname = 'aeroplane'
         self.use_mask = use_mask
-
-        self.annotate_video(video_path)
+        self.annotate_dataset()
 
     def clicker_event(self, event, x, y, flags, param):
         # save point to polygon
@@ -37,7 +49,6 @@ class Annotater:
             if not isinstance(self.points, bool) and len(self.points) > 0:
                 self.points = np.delete(self.points, len(self.points)-1,0)
 
-    # Draw points from the global points array.
     def draw_points(self, im):
         col = (0, 233, 0)
         if not isinstance(self.points, bool):
@@ -55,32 +66,33 @@ class Annotater:
         cv2.fillConvexPoly(im, pts, col)
         return im
 
-    # Create annotations for a video file.
-    def annotate_video(self, source_video):
+    def draw_annotation(self, im, name, pts, col=(255,255,255)):
+        for pt1, pt2 in zip(pts[:-1], pts[1:]):
+            cv2.line(im, tuple(pt1), tuple(pt2), col)
+        cv2.line(im, tuple(pts[-1]), tuple(pts[0]), col)
+        cv2.putText(img=im,
+                    text=name,
+                    org=tuple(pts[0]),
+                    fontFace=cv2.FONT_HERSHEY_DUPLEX,
+                    fontScale=0.5,
+                    color=col)
+        return im
+
+    def annotate_dataset(self):
         m = None
         is_running = True
 
-        # images = image_input.ImageInput(source_video)
-        images = image_input.InputImages(source_video)
+        if os.path.isfile(self.cachefile):
+            self.dataset = pickle.load(open(self.cachefile, 'rb'))
 
-        # Setup the im objects 
-        if(os.path.isfile(self.cachefile)):
-            all_images = pickle.load(open(self.cachefile, 'rb'))
-        else:
-            all_images = []
-            for i in range(int(images.max_index)):
-                all_images.append(image.Image())
-
-        while(images is not None):
-            annotations = all_images[images.get_index()].annotated_objects
-            # vid.set(cv2.CAP_PROP_POS_FRAMES, current_index)
+        while self.dataset is not None:
+            annotations = self.dataset.get_annotations()
 
             if is_running:
-                # ret, frame = vid.read()
-                frame = images.get_image()
+                _, frame = self.dataset.get_image()
             else:
                 break
-            
+
             polys = []
 
             w = cv2.namedWindow('Annotate')
@@ -96,13 +108,14 @@ class Annotater:
                     im = cv2.bitwise_and(im, im, mask=m.mask)
 
                 # Draw the currently added points
-                if(not isinstance(self.points, bool) and
+                if (not isinstance(self.points, bool) and
                         len(self.points) > 0):
                     im = self.draw_points(im)
 
                 # Draw the up until now added polygons
                 for p in annotations:
-                    im = self.draw_poly(im, p.poly)
+                    # im = self.draw_poly(im, p.poly)
+                    im = self.draw_annotation(im, p.classname, p.poly)
 
                 cv2.imshow('Annotate', im)
 
@@ -110,10 +123,10 @@ class Annotater:
 
                 # Fast forward, skip 100 frames in either direction
                 if key == ord(']'):
-                    images.inc_index(100)
+                    self.dataset.inc_index(100)
                     # current_index = min(current_index + 100, max_index - 1)
                 elif key == ord('['):
-                    images.dec_index(100)
+                    self.dataset.dec_index(100)
                     # current_index = max(current_index - 100, 0)
 
                 # Quit on q
@@ -122,11 +135,10 @@ class Annotater:
 
                 # Add object with n
                 if key == ord('n'):
-                    if(not isinstance(self.points, bool) and 
-                            len(self.points > 3)):                            
-                        a = annotated_object.Annotated_object(self.points,
-                                                              self.classname,
-                                                              self.truncated)
+                    if not isinstance(self.points, bool) and len(self.points) > 3:
+                        a = AnnotatedObject(self.points,
+                                            self.classname,
+                                            self.truncated)
                         annotations.append(a)
                         self.points = False
 
@@ -140,30 +152,16 @@ class Annotater:
                     self.truncated = not self.truncated
                     print("Truncated is set to: {}".format(self.truncated))
 
-                # Next im and save 
+                # Next im and save
                 if key == 32:
-                    all_images[images.get_index()].annotated_objects = annotations
+                    self.dataset.set_annotations(annotations)
                     annotations = []
-                    pickle.dump(all_images, open(self.cachefile, 'wb'))
-                    # Add annotation for al
-                    #for annot in annotations:
-                    #    print("Adding annotations: {}".format(annot))
+                    pickle.dump(self.dataset, open(self.cachefile, 'wb'))
 
-                if key == 83 or key == 32 or key == ord(']'): #right or space
-                    images.inc_index()
+                if key == 83 or key == 32 or key == ord(']'):  # right or space
+                    self.dataset.inc_index()
                     break
 
-                elif key == 81 or key == ord('['): #left
-                    images.dec_index()
+                elif key == 81 or key == ord('['):  # left
+                    self.dataset.dec_index()
                     break
-
-        # Save all created annotations as a Pascal VOC dataset
-        p = pascal_voc.PascalVoc()
-        for idx, im in enumerate(all_images):
-            if len(im.annotated_objects) > 0:
-                # Load correct image again
-                images.set_index(idx)
-                frame = images.get_image()
-                if self.use_mask:
-                    img = cv2.bitwise_and(frame, frame, mask=m.mask)
-                p.save(frame, im.annotated_objects)

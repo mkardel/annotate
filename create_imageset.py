@@ -21,6 +21,7 @@ trainval = []
 test_probability = 0
 train_probability = 1
 
+
 def save_imagesets(imageset_path):
     with open(os.path.join(imageset_path, "test.txt"), "w") as test_file:
         test_file.write('\n'.join(i for i in test))
@@ -30,6 +31,7 @@ def save_imagesets(imageset_path):
         val_file.write('\n'.join(i for i in val))
     with open(os.path.join(imageset_path, "trainval.txt"), "w") as trainval_f:
         trainval_f.write('\n'.join(i for i in trainval))
+
 
 if __name__ == '__main__':
 
