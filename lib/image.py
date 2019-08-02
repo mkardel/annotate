@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import cv2
 
-# An image holds a list of annotated objects
-class Image:
 
+class Image(object):
+    """Image class holds a list of annotations"""
     def __init__(self, annotated_objects=None):
         if annotated_objects is None:
             self.annotated_objects = []

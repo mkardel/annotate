@@ -1,4 +1,8 @@
-import os
+from os import listdir
+from os.path import isdir
+from os.path import isfile
+from os.path import join
+
 import cv2
 
 
@@ -9,9 +13,10 @@ class ImageInput(object):
 
     def __init__(self, source=None):
 
-        if os.path.isfile(source):
+        self.index = 0
+        if isfile(source):
             self = _InputVideo(source)
-        elif os.path.isdir(source):
+        elif isdir(source):
             self = InputImages(source)
         else:
             self = None
@@ -22,21 +27,21 @@ class ImageInput(object):
     def get_image(self):
         pass
 
+    def get_index(self):
+        self.index
+
 
 class InputImages(object):
 
     def __init__(self, source):
         self.index = 0
-        self.images = [os.path.join(os.path.dirname(source), f) for f in os.listdir(source)]
+        self.images = [join(source, f) for f in listdir(source)]
         self.images.sort()
         self.max_index = len(self.images)
 
     def _get_image(self, idx=0):
         im = cv2.imread(self.images[idx])
         return im
-
-    def get_index(self):
-        return self.index
 
     def set_index(self, idx):
         if 0 <= idx < (self.max_index - 1):
